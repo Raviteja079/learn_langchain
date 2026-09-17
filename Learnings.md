@@ -38,3 +38,35 @@ Tool execution
 prompt.invoke() doesn't call the LLM.
 It only creates the formatted messages.
 
+Prompt Template = prepares the input
+Model            = generates the response
+
+**Next: LCEL**
+**Runnable**
+A Runnable is basically a LangChain component that knows how to:
+receive an input → do some work → produce an output
+
+User question
+      ↓
+ ┌────┴─────┐
+ ↓          ↓
+Retriever   Query analysis
+ ↓          ↓
+docs        intent
+ └────┬─────┘
+      ↓
+    combine
+
+RunnableParallel = send the same input through multiple processing paths and collect their outputs.
+
+PromptTemplate → make prompts reusable and dynamic
+Runnable/LCEL → reusable/composable processing pipeline or make the whole LLM workflow reusable and composable,
+
+**structured output**
+Structured output is not mainly about making the LLM's answer "better."
+It's about making the LLM's output predictable and machine-readable.
+
+Tools → structured input to functions
+Structured output → structured data from the LLM
+
+Both are ways of making LLMs work reliably with normal software.

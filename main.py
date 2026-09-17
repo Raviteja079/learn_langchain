@@ -3,7 +3,9 @@ from langchain.tools import tool
 from dotenv import load_dotenv 
 from langchain.agents import create_agent 
 from langchain_core.messages import ToolMessage 
-
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableParallel, RunnableLambda
+from pydantic import BaseModel
 
 
 
@@ -47,16 +49,50 @@ def cancel_order(order_id: int) -> str:
     """Cancel an order."""
     return f"Order {order_id} has been cancelled."
 
+def get_content(response):
+    return response.content
 
+def simple_explanation(text):
+    return f"Simple explanation of: {text}"
 
-model = ChatOllama(model = "mistral")
+def short_definition(text):
+    return f"One-line definition of: {text}"
 
-agent = create_agent(model = model, tools = [get_order_status, cancel_order])
-
-result = agent.invoke({
-    "messages": [
-        {"role": "user", "content": "Check order 101. If it is still processing, cancel it."}
-    ]
+prompt = ChatPromptTemplate.from_messages([("system","You are a helpful assistant"),("human","Explain {topic} in simple terms")])
+messages = prompt.invoke({
+    "topic": "RAG"
 })
+# model = ChatOllama(model = "mistral")
+# response = model.invoke(messages)
+# chain = prompt | model | get_content
+# response = chain.invoke({"topic": "RAG"})
+# print(response)
 
-print(result["messages"][-1].content)
+parallel = RunnableParallel(
+    simple = RunnableLambda(simple_explanation),
+    definition = RunnableLambda(short_definition)
+)
+
+result = parallel.invoke("RAG")
+print(result)
+
+
+
+# agent = create_agent(model = model, tools = [get_order_status, cancel_order])
+
+# result = agent.invoke({
+#     "messages": [
+#         {"role": "user", "content": "Check order 101. If it is still processing, cancel it."}
+#     ]
+# })
+
+# print(result["messages"][-1].content)
+
+class OrderResponse(BaseModel):
+    order_id: int
+    status: str
+
+model = ChatOllama(model='mistral')
+structured_model = model.with_structured_output(OrderResponse)
+result = structured_model.invoke("what is the status of order 101?")
+print(result)
