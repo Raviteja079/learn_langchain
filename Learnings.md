@@ -70,3 +70,32 @@ Tools → structured input to functions
 Structured output → structured data from the LLM
 
 Both are ways of making LLMs work reliably with normal software.
+
+**RAG**
+Your documents
+      ↓
+   Split into chunks
+      ↓
+   Create embeddings
+      ↓
+   Store in vector DB
+      ↓
+User asks question
+      ↓
+Convert question → embedding
+      ↓
+Search similar chunks
+      ↓
+Relevant chunks
+      ↓
+LLM + question + chunks
+      ↓
+Answer
+
+Retrieve relevant knowledge first, then ask the LLM to answer using that knowledge.
+
+Retrieval → find relevant information
+Augmented → add it to the LLM's context
+Generation → LLM generates the answer
+
+That's why chunking improves retrieval precision.

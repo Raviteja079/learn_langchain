@@ -6,6 +6,8 @@ from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableParallel, RunnableLambda
 from pydantic import BaseModel
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 
@@ -94,5 +96,37 @@ class OrderResponse(BaseModel):
 
 model = ChatOllama(model='mistral')
 structured_model = model.with_structured_output(OrderResponse)
-result = structured_model.invoke("what is the status of order 101?")
-print(result)
+# result = structured_model.invoke("what is the status of order 101?")
+# print(result)
+
+
+
+
+documents = [
+    "Employees can work from home on Fridays.",
+    "Employees receive 20 days of paid leave every year.",
+    "The company provides health insurance to all full-time employees."
+]
+question = "How many paid leave days do employees get?"
+
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+document_embeddings = embedding_model.encode(documents)
+question_embedding = embedding_model.encode(question)
+print(document_embeddings)
+
+similarities = cosine_similarity(
+    [question_embedding],
+    document_embeddings
+)
+
+context = documents[1]
+
+prompt = f"""
+Answer the question using the context below
+
+Context: {context}
+Question: {question}
+"""
+response = model.invoke(prompt)
+
+print(response.content)
