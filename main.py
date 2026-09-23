@@ -4,10 +4,13 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent 
 from langchain_core.messages import ToolMessage 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableParallel, RunnableLambda
+from langchain_core.runnables import RunnableParallel, RunnableLambda, RunnablePassthrough
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
 
 
 
@@ -76,7 +79,7 @@ parallel = RunnableParallel(
 )
 
 result = parallel.invoke("RAG")
-print(result)
+# print(result)
 
 
 
@@ -100,7 +103,8 @@ structured_model = model.with_structured_output(OrderResponse)
 # print(result)
 
 
-
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
 
 documents = [
     "Employees can work from home on Fridays.",
@@ -112,7 +116,7 @@ question = "How many paid leave days do employees get?"
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 document_embeddings = embedding_model.encode(documents)
 question_embedding = embedding_model.encode(question)
-print(document_embeddings)
+# print(document_embeddings)
 
 similarities = cosine_similarity(
     [question_embedding],
@@ -127,6 +131,125 @@ Answer the question using the context below
 Context: {context}
 Question: {question}
 """
-response = model.invoke(prompt)
+# response = model.invoke(prompt)
 
-print(response.content)
+text = """
+Employees receive 20 days of paid leave every year.
+Employees can work from home on Fridays.
+The company provides health insurance to all full-time employees.
+"""
+
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=100,
+    chunk_overlap=20
+)
+
+chunks = splitter.split_text(text)
+# for chunk in chunks: 
+#     print("----")
+#     print(chunk)
+
+# step1: create embedding model
+embeddings = HuggingFaceEmbeddings(
+    model_name="all-MiniLM-L6-v2"
+)
+
+# step 2: create the vector store
+vector_store = Chroma.from_texts(
+    chunks,
+    embedding=embeddings
+)
+
+"""that does several things behind the scenes
+chunks
+  ↓
+HuggingFaceEmbeddings
+  ↓
+vectors
+  ↓
+Chroma
+  ↓
+stores text + vectors"""
+
+# step 3: Search 
+results = vector_store.similarity_search("How many paid leaves do employees get?", k=3)
+# print(results[0].page_content)
+
+# Retreiver 
+retriever = vector_store.as_retriever(search_kwargs={"k":3})
+# docs = retriever.invoke(
+#     "How many paid leave days do employees get?"
+# )
+
+# for i, doc in enumerate(docs):
+#     print(f"\n--- Document {i+1} ---")
+#     print(doc.page_content)
+
+
+results = vector_store.similarity_search_with_score(
+    "How many paid leave days do employees get?",
+    k=2
+)
+# for doc, score in results:
+#     print("\n---")
+#     print("Score:", score)
+#     print("Text:", doc.page_content)
+
+
+retriever = vector_store.as_retriever(
+    search_type="similarity_score_threshold",
+    search_kwargs={
+        "score_threshold": 0.5
+    }
+)
+
+docs = retriever.invoke(
+    "What is the company's maternity leave policy?"
+)
+
+for doc in docs:
+    print(doc.page_content)
+
+
+
+# LLM response 
+
+prompt = ChatPromptTemplate.from_template("""
+Answer the question using only the context below.
+
+If the answer is not present in the context, say:
+"I don't know based on the provided documents."
+
+Context:
+{context}
+
+Question:
+{question}
+""")
+
+format_docs_runnable = RunnableLambda(format_docs)
+
+setup = RunnableParallel(
+    context=retriever | format_docs_runnable,
+    question=RunnablePassthrough()
+)
+
+rag_chain = setup | prompt | model 
+
+res = rag_chain.invoke("How many leave does a employee can have?")
+# print(res.content)
+
+"""
+Question
+   ↓
+RunnableParallel
+   ├── retriever → relevant documents
+   └── passthrough → original question
+             ↓
+        {context, question}
+             ↓
+           Prompt
+             ↓
+            LLM
+"""
+
