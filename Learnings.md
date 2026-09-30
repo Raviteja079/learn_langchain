@@ -322,3 +322,320 @@ Similarity scores
    threshold = "How relevant must it be?"
 
    ***Next up: **MMR (Maximum Marginal Relevance)** — why sometimes the top 3 similarity results can be nearly duplicates, and how MMR tries to give you relevant but diverse chunks.***
+
+   Similarity search: "Give me the most relevant documents."
+
+MMR: "Give me relevant documents, but don't waste my slots on near-duplicates."
+
+**fetch_k** : Because MMR needs options to choose from.
+fetch_k=10 → first collect 10 candidate chunks
+
+Imagine:
+
+fetch_k = 10**
+
+1. Very relevant, duplicate
+2. Very relevant, duplicate
+3. Very relevant, duplicate
+4. Relevant, different
+5. Relevant, different
+...
+10. Somewhat relevant
+
+MMR can look at those 10 and say:
+
+"Instead of taking three almost-identical chunks, I'll take #1, #4, #5 because they give broader information."
+
+So the mental model is:
+
+fetch_k = candidate pool
+k = final number of documents
+
+
+retriever.invoke()
+        ↓
+      docs          ← returned value
+        ↓
+ warning/log       ← automatically displayed by LangChain
+
+
+ We've now covered:
+
+k → how many final documents to return
+score_threshold → minimum relevance requirement
+MMR → relevance + diversity
+fetch_k → candidate pool for MMR
+
+
+**Reranking** 
+Because reranking is usually more computationally expensive.
+100,000 documents
+       ↓
+expensive reranker
+       ↓
+😵
+
+Instead:
+
+100,000 documents
+       ↓
+cheap vector search
+       ↓
+Top 20 candidates
+       ↓
+expensive reranker
+       ↓
+Top 3
+
+Vector search vs reranker
+
+Think of them like this:
+
+Vector search:
+
+"Out of this huge library, which 20 books look like they might be about my question?"
+
+Reranker:
+
+"Now that you've given me these 20 candidates, carefully examine each one against the actual question and tell me which 3 are most relevant."
+
+So:
+
+Retriever = broad + fast
+
+Reranker = narrow + more precise
+
+
+(question, document) → relevance score
+**build a tiny reranking experiment now. with *cross-encoder reranker* ***
+
+One thing I want you to notice: the reranker sees the question and document together, unlike our embedding search where they were independently converted to vectors and compared.
+Normal:
+Question
+  ↓
+Retriever
+  ↓
+Docs
+  ↓
+LLM
+
+
+With reranking:
+Question
+  ↓
+Retriever
+  ↓
+Candidate Docs
+  ↓
+Reranker  ← EXTRA STEP
+  ↓
+Docs + relevance scores
+  ↓
+Sort/filter
+  ↓
+Best Docs
+  ↓
+LLM
+
+
+for reranker scores : For this particular cross-encoder, higher score = more relevant
+
+still model-dependent judgment.
+
+That's exactly why we evaluate retrieval systems using datasets/metrics rather than assuming a reranker is perfect. That's a later production topic. 👍
+
+-2.023 > -5.368, so:
+
+-2.023 → more relevant ✅
+-5.368 → less relevant
+
+
+100,000 docs
+     ↓
+Chroma similarity search
+     ↓
+50 candidates          ← cheap
+     ↓
+Cross-encoder
+     ↓
+Top 5                  ← accurate
+
+
+So the key idea is:
+
+Vector search = fast candidate finder
+Reranker = slower, more precise judge of those candidates
+
+#Reranker in RAG pipeline
+                 Chroma
+Question ───────────────────→ Candidate Docs
+                                  │
+                                  ↓
+                         CrossEncoder
+                    (Question + each Doc)
+                                  │
+                                  ↓
+                            Relevance scores
+                                  │
+                                  ↓
+                              Sort ↓
+                                  │
+                                  ↓
+                              Top 3 Docs
+
+
+                              Question
+                                 ↓
+                              Chroma retriever
+                                 ↓
+                              rerank_documents()
+                                 ↓
+                              Top 3 Documents
+                                 ↓
+                              format_docs()
+                                 ↓
+                              Prompt
+                                 ↓
+                              LLM
+
+
+
+
+
+                              LCEL
+                              ↓
+                              question + retrieved docs
+                              ↓
+                              rerank_documents(question, docs)
+                                    ↓
+                                 create pairs
+                                    ↓
+                                 CrossEncoder scores
+                                    ↓
+                                 sort
+                                    ↓
+                                 top 3 docs
+
+
+"Tell me about the company's leave policy."
+                │
+                ▼
+       RunnableParallel
+          /          \
+         /            \
+   question         retriever
+      │                 │
+      │              Chroma
+      │                 │
+      │              6 docs
+      └────────┬────────┘
+               ▼
+       rerank_documents()
+               │
+               ├── create pairs
+               ├── CrossEncoder scores
+               ├── sort
+               └── top 3
+
+```retrieval_and_rerank = (
+    RunnableParallel(
+        question=RunnablePassthrough(),
+        docs=retriever
+    )
+    | RunnableLambda(
+        lambda x: rerank_documents(x["question"], x["docs"])
+    )
+)```
+
+check point: 
+
+
+Where we are in LangChain
+
+Completed:
+
+Models + Messages ✅
+Prompt Templates ✅
+Structured Output ✅
+LCEL + Runnables ✅
+Tools + Tool Calling + Agents ✅
+RAG fundamentals ✅
+Embeddings
+Chroma/vector stores
+Retrievers
+Chunking
+k
+Similarity search
+Threshold
+MMR
+Reranking ← currently here
+
+Still remaining:
+7. Advanced RAG → hybrid search, query transformation, etc.
+8. Memory + persistence
+9. LangGraph
+10. MCP
+11. LangSmith + evaluation
+12. Guardrails + production patterns
+13. 🚀 Build the resume-worthy project
+
+So I'd say we're roughly 50–55% through the learning curriculum, with the most important practical foundations already covered.
+
+
+
+                    Question
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Chroma Retriever│
+              └────────┬────────┘
+                       │
+                 Candidate docs
+                       │
+                       ▼
+              ┌─────────────────┐
+              │   CrossEncoder  │
+              │    Reranker     │
+              └────────┬────────┘
+                       │
+                    Top 3
+                       │
+                       ▼
+                 format_docs()
+                       │
+                       ▼
+             ┌───────────────────┐
+             │ Context + Question│
+             └─────────┬─────────┘
+                       │
+                       ▼
+                    Prompt
+                       │
+                       ▼
+                      LLM
+                       │
+                       ▼
+                     Answer
+
+
+
+                     Question
+   ↓
+Chroma — fast candidate retrieval
+   ↓
+6 candidate documents
+   ↓
+CrossEncoder — relevance reranking
+   ↓
+Top 3 documents
+   ↓
+format_docs()
+   ↓
+Prompt
+   ↓
+Mistral
+   ↓
+Grounded answer
+
+
+***broad retrieval first → precise reranking second → generation last. 🔥***
