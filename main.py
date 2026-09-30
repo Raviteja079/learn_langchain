@@ -111,6 +111,7 @@ documents = [
     "Employees receive 20 days of paid leave every year.",
     "The company provides health insurance to all full-time employees."
 ]
+
 question = "How many paid leave days do employees get?"
 
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -207,9 +208,20 @@ docs = retriever.invoke(
     "What is the company's maternity leave policy?"
 )
 
-for doc in docs:
-    print(doc.page_content)
+# for doc in docs:
+#     print(doc.page_content)
 
+
+retriever = vector_store.as_retriever(
+    search_type="mmr",
+    search_kwargs={
+        "k": 3
+    }
+)
+
+docs = retriever.invoke("Tell me about the company's leave policy.")
+for doc in docs: 
+    print('start',doc.page_content, 'end')
 
 
 # LLM response 
