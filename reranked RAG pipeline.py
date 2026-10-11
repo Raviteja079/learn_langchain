@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama
 
 
-documents = documents = [
+documents = [
     "Employees receive 20 days of paid leave every year.",
     "The annual paid leave entitlement for employees is 20 days.",
     "Employees are entitled to 20 days of annual vacation leave.",
@@ -140,7 +140,10 @@ reranked_context = (
     retrieval_and_rerank
     | RunnableLambda(format_docs)
 )
-
+#reranked_context → takes the question → retrieves + reranks → formats the top docs into context.
+#RunnableParallel = send the same input through multiple processing paths and collect their outputs.
+#RunnableParallel → sends the same input into multiple branches and combines their outputs into a dictionary.
+#RunnablePassthrough() → simply passes the original question unchanged.
 rag_input = RunnableParallel(
     context=reranked_context,
     question=RunnablePassthrough()

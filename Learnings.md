@@ -61,7 +61,8 @@ RunnableParallel = send the same input through multiple processing paths and col
 
 PromptTemplate → make prompts reusable and dynamic
 Runnable/LCEL → reusable/composable processing pipeline or make the whole LLM workflow reusable and composable,
-
+RunnableParallel → sends the same input into multiple branches and combines their outputs into a dictionary.
+reranked_context → takes the question → retrieves + reranks → formats the top docs into context.
 **structured output**
 Structured output is not mainly about making the LLM's answer "better."
 It's about making the LLM's output predictable and machine-readable.
@@ -619,7 +620,7 @@ So I'd say we're roughly 50–55% through the learning curriculum, with the most
 
 
 
-                     Question
+Question
    ↓
 Chroma — fast candidate retrieval
    ↓
@@ -639,3 +640,112 @@ Grounded answer
 
 
 ***broad retrieval first → precise reranking second → generation last. 🔥***
+
+
+
+**Hybrid Search**
+
+                    Question
+                       ↓
+             ┌─────────┴─────────┐
+             ↓                   ↓
+       Vector Search         BM25 Search
+       (meaning)             (keywords)
+             ↓                   ↓
+         candidates          candidates
+             └─────────┬─────────┘
+                       ↓
+                 Combine results
+                       ↓
+                  Reranker
+                       ↓
+                    Top docs
+                       ↓
+                      LLM
+
+   One thing to absorb today
+Think:
+Vector search asks:  
+"What documents mean something similar?"
+
+BM25 asks:  
+"What documents contain/resemble these important words?"
+
+Hybrid asks:  
+"Can I use both types of evidence?"
+
+And this is why production RAG systems often don't rely on only vector similarity.
+
+learningn evidence:
+***Vector search → MMR/threshold → Reranking → Hybrid search*** 
+Each one addresses a different weakness of basic retrieval.
+✅ Hybrid-search diagram
+✅ Working hybrid retrieval code
+✅ 3 test queries + retrieved results
+✅ 3-sentence explanation of why hybrid search helps
+
+✅ Covered
+1. Models + Messages
+2. Prompt Templates
+3. Structured Output
+4. LCEL + Runnables
+5. Tools + Tool Calling + Agents
+6. RAG fundamentals
+7. Retrieval strategies
+   - Similarity
+   - Threshold
+   - MMR
+   - Reranking
+   - Hybrid search ← currently learning
+🔜 Remaining
+8. Advanced RAG
+   - Query transformation
+   - Multi-query
+   - HyDE
+   - Parent/child retrieval
+   - Contextual compression
+9. Memory + persistence
+10. LangGraph
+11. MCP
+12. LangSmith / tracing / evaluation
+13. Guardrails + production patterns
+14. 🚀 Build the resume-worthy AI full-stack project
+So we're roughly 55–60% through the learning curriculum.
+
+
+BM25's IDF calculation is based on how rare a term is across the whole document collection.
+In your collection:
+"is"             → appears in only Doc 5
+"inv-938271"     → appears in only Doc 4
+It only sees tokens + their statistical importance.
+*In a real BM25 implementation, you'd normally also use things like stop-word removal (is, the, of, etc.), better tokenization, stemming/normalization, and a much larger corpus.
+
+This document was highly ranked by Chroma, and this one was highly ranked by BM25 — let's combine those signals."
+
+That's the next concept: rank fusion.
+A common approach is Reciprocal Rank Fusion (RRF).
+
+Chroma rank + BM25 rank
+
+        ↓
+   combined score
+        ↓
+     final ranking
+
+
+enumerate() gives us the rank.
+scores.get(doc, 0) gives us the doc's existing accumulated score, or 0 if we've never seen it.
+The = line adds the new rank-based points to that accumulated score.
+
+Why not use CrossEncoder from the beginning?
+Because CrossEncoder is relatively expensive.
+
+10,000 documents
+      ↓
+Chroma/BM25
+      ↓
+50 candidates
+      ↓
+CrossEncoder
+      ↓
+Top 3
